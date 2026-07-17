@@ -255,7 +255,7 @@ a{color:inherit;text-decoration:none}
       <a class="lnk" href="#start">Quickstart</a>
       <a class="lnk" href="#endpoints">API</a>
       <a class="lnk" href="#golive">Go-live</a>
-      <a class="lnk" href="Blend-x-Whish-Integration-Guide.pdf" download>PDF</a>
+      <a class="lnk" href="Blend-Web-Service-Technical-Specification.pdf" download>Spec (PDF)</a>
       <a class="pill" href="#start">Start building →</a>
     </nav>
   </div>
@@ -268,7 +268,7 @@ a{color:inherit;text-decoration:none}
   <p class="lede">List Blend platform events, render tickets, waves, seat maps and questions, take the payment on Whish's own rail, and let Blend issue the ticket. One backend integration — Blend stays the source of truth for inventory, pricing and delivery.</p>
   <div class="cta">
     <a class="btn primary" href="#start">Read the quickstart →</a>
-    <a class="btn ghost" href="Blend-x-Whish-Integration-Guide.pdf" download>Download the PDF guide</a>
+    <a class="btn ghost" href="Blend-Web-Service-Technical-Specification.pdf" download>Download the spec (PDF)</a>
   </div>
   <div class="authored"><img src="blend-logo.png" alt=""/> Maintained by Blend Engineering · these are Blend's official docs for the Whish integration</div>
 </section>
@@ -283,12 +283,12 @@ a{color:inherit;text-decoration:none}
     <div class="rail">
       <div class="railfill" id="railfill" aria-hidden="true"></div>
       <div class="steps">
-        <div class="step reveal"><div class="node">01</div><div><div class="who">Whish app → Blend</div><h4>List events &amp; the event page</h4><p><code>GET /storefront/catalog</code> then <code>/events/:id/page</code> — cards, tickets, waves, add-ons, custom questions, seating, all live from Blend.</p></div></div>
-        <div class="step reveal"><div class="node">02</div><div><div class="who">Whish app → Blend</div><h4>Quote the cart</h4><p><code>POST /storefront/quote</code> returns the server-authoritative total (subtotal + fee). Display it verbatim — never compute your own.</p></div></div>
-        <div class="step reveal"><div class="node">03</div><div><div class="who">Whish app → Blend</div><h4>Create the Whish payment</h4><p><code>POST /storefront/whish/create-payment</code> opens a Whish collect session on Blend's merchant account and returns <code>{ url, externalId, registrationId }</code>.</p></div></div>
+        <div class="step reveal"><div class="node">01</div><div><div class="who">Whish app → Blend</div><h4>List events &amp; the event page</h4><p><code>GET /partner/events</code> then <code>/partner/events/:id</code> — cards, tickets, waves, add-ons, custom questions, seating, all live from Blend.</p></div></div>
+        <div class="step reveal"><div class="node">02</div><div><div class="who">Whish app → Blend</div><h4>Show tickets &amp; price</h4><p>The event page returns live ticket prices (waves + fees already applied). Show them verbatim — pricing is finalized by Blend at checkout.</p></div></div>
+        <div class="step reveal"><div class="node">03</div><div><div class="who">Whish app → Blend</div><h4>Create the Whish payment</h4><p><code>POST /partner/events/:id/checkout</code> creates the order and opens a Whish Pay collect session, returning <code>{ collectUrl, externalId, orderId }</code>.</p></div></div>
         <div class="step reveal"><div class="node">04</div><div><div class="who">Inside Whish</div><h4>Buyer pays</h4><p>The buyer settles the collect session natively with their Whish balance. No browser, no checkout page hosted by Blend.</p></div></div>
         <div class="step reveal"><div class="node">05</div><div><div class="who">Whish core → Blend</div><h4>Blend confirms</h4><p>Blend re-verifies the collect against Whish's status API, claims capacity, books held seats, and emails the ticket. Server-to-server — nothing for you to build.</p></div></div>
-        <div class="step reveal"><div class="node">06</div><div><div class="who">Whish app → Blend</div><h4>Deliver the ticket</h4><p>Poll <code>GET /storefront/registration/:id</code> until <code>paid: true</code>, then show the pass and deep-link the QR at <code>tickets.blendapp.ai/ticket/&lt;id&gt;</code>.</p></div></div>
+        <div class="step reveal"><div class="node">06</div><div><div class="who">Whish app → Blend</div><h4>Deliver the ticket</h4><p>Poll <code>GET /partner/orders/status</code> until <code>paid: true</code>, then show the pass and deep-link the QR at <code>tickets.blendapp.ai/ticket/&lt;id&gt;</code>.</p></div></div>
       </div>
     </div>
   </div>
@@ -328,33 +328,29 @@ a{color:inherit;text-decoration:none}
 
       <div class="code reveal">
         <div class="bar"><span class="f">headers — every request</span><span class="cp" data-copy>Copy</span></div>
-<pre><code><span class="tk-k">x-blend-key</span>: pk_live_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-<span class="tk-k">Origin</span>: https://whish.money
+<pre><code><span class="tk-k">x-blend-key</span>: &lt;your Blend partner key&gt;
+<span class="tk-k">x-blend-secret</span>: &lt;your Blend partner secret&gt;
 <span class="tk-k">Content-Type</span>: application/json
 <span class="tk-k">X-Forwarded-For</span>: &lt;the buyer's device IP&gt;</code></pre>
       </div>
 
       <div class="code reveal">
         <div class="bar"><span class="f">the call sequence — paid GA ticket</span><span class="cp" data-copy>Copy</span></div>
-<pre><code><span class="tk-c"># 1 · browse + render the event</span>
-<span class="tk-m">GET</span>  /api/v1/storefront/catalog
-<span class="tk-m">GET</span>  /api/v1/storefront/events/{id}/page
+<pre><code><span class="tk-c"># 1 · list every platform event + open one</span>
+<span class="tk-m">GET</span>  /api/v1/partner/events
+<span class="tk-m">GET</span>  /api/v1/partner/events/{id}
 
-<span class="tk-c"># 2 · quote — the server-authoritative total</span>
-<span class="tk-m">POST</span> /api/v1/storefront/quote
-     { <span class="tk-k">"eventId"</span>:<span class="tk-s">"aBc123"</span>, <span class="tk-k">"selectedTicketId"</span>:<span class="tk-s">"665f…"</span>, <span class="tk-k">"quantity"</span>:<span class="tk-p">2</span> }
-     <span class="tk-c">→ { subtotal, fee, total, currency }</span>
+<span class="tk-c"># 2 · create the order + open the Whish Pay collect</span>
+<span class="tk-m">POST</span> /api/v1/partner/events/{id}/checkout
+     { <span class="tk-k">"amount"</span>:<span class="tk-p">49.5</span>, <span class="tk-k">"currency"</span>:<span class="tk-s">"USD"</span>,
+       <span class="tk-k">"buyerName"</span>:<span class="tk-s">"Rami K"</span>, <span class="tk-k">"buyerEmail"</span>:<span class="tk-s">"rami@example.com"</span>,
+       <span class="tk-k">"tickets"</span>:[{ <span class="tk-k">"ticketId"</span>:<span class="tk-s">"665f…"</span>, <span class="tk-k">"quantity"</span>:<span class="tk-p">2</span> }],
+       <span class="tk-k">"idempotencyKey"</span>:<span class="tk-s">"whish-7f3a9c1b24d8"</span> }
+     <span class="tk-c">→ { orderId, externalId, collectUrl }</span>
 
-<span class="tk-c"># 3 · open the Whish collect session</span>
-<span class="tk-m">POST</span> /api/v1/storefront/whish/create-payment
-     <span class="tk-k">Idempotency-Key</span>: &lt;fresh uuid per attempt&gt;
-     { <span class="tk-k">"eventId"</span>:<span class="tk-s">"aBc123"</span>, <span class="tk-k">"amount"</span>:<span class="tk-p">49.5</span>, <span class="tk-k">"currency"</span>:<span class="tk-s">"USD"</span>,
-       <span class="tk-k">"userName"</span>:<span class="tk-s">"Rami K"</span>, <span class="tk-k">"userEmail"</span>:<span class="tk-s">"rami@example.com"</span>,
-       <span class="tk-k">"tickets"</span>:[{ <span class="tk-k">"ticketId"</span>:<span class="tk-s">"665f…"</span>, <span class="tk-k">"quantity"</span>:<span class="tk-p">2</span> }] }
-     <span class="tk-c">→ { url, externalId, registrationId }</span>
-
-<span class="tk-c"># 4 · buyer settles the collect inside Whish, then poll</span>
-<span class="tk-m">GET</span>  /api/v1/storefront/registration/{registrationId}
+<span class="tk-c"># 3 · buyer settles the collect in Whish, then poll</span>
+<span class="tk-m">POST</span> /api/v1/partner/orders/status
+     { <span class="tk-k">"externalId"</span>:<span class="tk-p">1234567890123</span> }
      <span class="tk-c">→ { paid: true, ticket: { … } }</span></code></pre>
       </div>
 
@@ -364,7 +360,7 @@ a{color:inherit;text-decoration:none}
       </div>
 
       <h3 class="reveal">Free tickets skip the payment leg</h3>
-      <p class="reveal">A $0 order (free tier or a 100%-off code) goes straight to <code>POST /storefront/register-guest</code> and confirms instantly with the QR email. Send the discount code in the body for the free path to apply.</p>
+      <p class="reveal">A $0 order (free tier or a 100%-off code) goes straight to <code>POST /partner/events/:id/checkout</code> and confirms instantly with the QR email. Send the discount code in the body for the free path to apply.</p>
     </section>
 
     <section id="sync">
@@ -391,14 +387,14 @@ a{color:inherit;text-decoration:none}
       <p class="reveal">All paths are under <code>https://api.blendapp.ai/api/v1</code>. Full field-level contracts live in the reference bundle.</p>
       <table class="tbl reveal">
         <tr><th>Method</th><th>Path</th><th>What it does</th></tr>
-        <tr><td><span class="mtd get">GET</span></td><td><code>/storefront/catalog</code></td><td>Event cards for the browse screen</td></tr>
-        <tr><td><span class="mtd get">GET</span></td><td><code>/storefront/events/:id/page</code></td><td>Full event page — tickets, waves, add-ons, questions, seating, flags</td></tr>
-        <tr><td><span class="mtd post">POST</span></td><td><code>/storefront/quote</code></td><td>Server-authoritative total (subtotal + fee)</td></tr>
-        <tr><td><span class="mtd post">POST</span></td><td><code>/storefront/whish/create-payment</code></td><td>Open a Whish collect session; returns the collect URL + ids</td></tr>
-        <tr><td><span class="mtd post">POST</span></td><td><code>/storefront/register-guest</code></td><td>Free / $0 orders — confirms instantly</td></tr>
-        <tr><td><span class="mtd get">GET</span></td><td><code>/storefront/registration/:id</code></td><td>Order status — poll until <code>paid: true</code></td></tr>
-        <tr><td><span class="mtd post">POST</span></td><td><code>/storefront/events/:id/access/validate</code></td><td>Mint an access-code token for gated events</td></tr>
-        <tr><td><span class="mtd post">POST</span></td><td><code>/storefront/seating/events/:id/hold</code></td><td>Hold reserved seats (10-minute hold)</td></tr>
+        <tr><td><span class="mtd get">GET</span></td><td><code>/partner/events</code></td><td>Every platform event, paginated — the browse screen</td></tr>
+        <tr><td><span class="mtd get">GET</span></td><td><code>/partner/events/:id</code></td><td>Full event — tickets, waves, add-ons, questions, seating</td></tr>
+        <tr><td><span class="mtd post">POST</span></td><td><code>/partner/events/:id/checkout</code></td><td>Create the order + open the Whish Pay collect session</td></tr>
+        <tr><td><span class="mtd post">POST</span></td><td><code>/partner/orders/status</code></td><td>Order status — poll until <code>paid: true</code></td></tr>
+        <tr><td></tr>
+        <tr><td></tr>
+        <tr><td></tr>
+        <tr><td><span class="mtd post">POST</span></td><td><code>/partner/events/:id/seats/hold</code></td><td>Hold reserved seats (10-minute hold)</td></tr>
       </table>
     </section>
 
@@ -408,11 +404,9 @@ a{color:inherit;text-decoration:none}
       <p class="reveal">When the event page returns <code>seating.enabled: true</code>, generate a stable <strong>X-Seat-Identity</strong> per buyer and send it on every seating call <em>and</em> on create-payment — the payment re-holds under that identity. Embed Blend's seat map as an iframe inside a host page, or render your own from the chart and drive the hold endpoints directly.</p>
       <div class="code reveal">
         <div class="bar"><span class="f">seated purchase — the identity threads through</span><span class="cp" data-copy>Copy</span></div>
-<pre><code><span class="tk-m">GET</span>  /storefront/seating/events/{id}/config       <span class="tk-c"># chart + prices</span>
-<span class="tk-m">POST</span> /storefront/seating/events/{id}/hold-token
-<span class="tk-m">POST</span> /storefront/seating/events/{id}/hold          <span class="tk-c"># X-Seat-Identity</span>
-<span class="tk-m">POST</span> /storefront/quote                             <span class="tk-c"># X-Seat-Identity</span>
-<span class="tk-m">POST</span> /storefront/whish/create-payment              <span class="tk-c"># SAME X-Seat-Identity + holdToken</span></code></pre>
+<pre><code><span class="tk-m">GET</span>  /partner/events/{id}/seats/config        <span class="tk-c"># chart + prices</span>
+<span class="tk-m">POST</span> /partner/events/{id}/seats/hold          <span class="tk-c"># X-Seat-Identity</span>
+<span class="tk-m">POST</span> /partner/events/{id}/checkout            <span class="tk-c"># SAME X-Seat-Identity + holdToken</span></code></pre>
       </div>
       <div class="note reveal"><div class="h">◆ One identity, everywhere</div><p>If the identity on the hold and the payment differ, the re-hold fails with <code>409 SEAT_UNAVAILABLE</code>. Generate it once per purchase session and reuse it.</p></div>
     </section>
