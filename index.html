@@ -340,7 +340,12 @@ a{color:inherit;text-decoration:none}
 <span class="tk-m">GET</span>  /api/v1/channel/events
 <span class="tk-m">GET</span>  /api/v1/channel/events/{id}
 
-<span class="tk-c"># 2 · create the order + open the Whish Pay collect</span>
+<span class="tk-c"># 2 · quote — subtotal + Blend fee + total (show before pay)</span>
+<span class="tk-m">POST</span> /api/v1/channel/events/{id}/quote
+     { <span class="tk-k">"tickets"</span>:[{ <span class="tk-k">"ticketId"</span>:<span class="tk-s">"665f…"</span>, <span class="tk-k">"quantity"</span>:<span class="tk-p">2</span> }] }
+     <span class="tk-c">→ { subtotal, fee, total, currency }</span>
+
+<span class="tk-c"># 3 · create the order + open the Whish Pay collect</span>
 <span class="tk-m">POST</span> /api/v1/channel/events/{id}/checkout
      { <span class="tk-k">"amount"</span>:<span class="tk-p">49.5</span>, <span class="tk-k">"currency"</span>:<span class="tk-s">"USD"</span>,
        <span class="tk-k">"buyerName"</span>:<span class="tk-s">"Rami K"</span>, <span class="tk-k">"buyerEmail"</span>:<span class="tk-s">"rami@example.com"</span>,
@@ -348,7 +353,7 @@ a{color:inherit;text-decoration:none}
        <span class="tk-k">"idempotencyKey"</span>:<span class="tk-s">"whish-7f3a9c1b24d8"</span> }
      <span class="tk-c">→ { orderId, externalId, collectUrl }</span>
 
-<span class="tk-c"># 3 · buyer settles the collect in Whish, then poll</span>
+<span class="tk-c"># 4 · buyer settles the collect in Whish, then poll</span>
 <span class="tk-m">POST</span> /api/v1/channel/orders/status
      { <span class="tk-k">"externalId"</span>:<span class="tk-p">1234567890123</span> }
      <span class="tk-c">→ { paid: true, ticket: { … } }</span></code></pre>
@@ -388,7 +393,9 @@ a{color:inherit;text-decoration:none}
       <table class="tbl reveal">
         <tr><th>Method</th><th>Path</th><th>What it does</th></tr>
         <tr><td><span class="mtd get">GET</span></td><td><code>/channel/events</code></td><td>Every platform event, paginated — the browse screen</td></tr>
-        <tr><td><span class="mtd get">GET</span></td><td><code>/channel/events/:id</code></td><td>Full event — tickets, waves, add-ons, questions, seating</td></tr>
+        <tr><td><span class="mtd get">GET</span></td><td><code>/channel/events/:id</code></td><td>Full event — tickets, waves, GA areas, seat map, add-ons, questions</td></tr>
+        <tr><td><span class="mtd post">POST</span></td><td><code>/channel/events/:id/quote</code></td><td>Subtotal + Blend fee + total (before checkout)</td></tr>
+        <tr><td><span class="mtd post">POST</span></td><td><code>/channel/events/:id/access/validate</code></td><td>Validate an access code for gated events</td></tr>
         <tr><td><span class="mtd post">POST</span></td><td><code>/channel/events/:id/checkout</code></td><td>Create the order + open the Whish Pay collect session</td></tr>
         <tr><td><span class="mtd post">POST</span></td><td><code>/channel/orders/status</code></td><td>Order status — poll until <code>paid: true</code></td></tr>
         <tr><td></tr>
